@@ -1,0 +1,14 @@
+EVALUATION SUMMARY
+======================================================================
+
+Total Queries: 9
+Successful: 9
+Failed: 0
+Success Rate: 100.00%
+
+Overall Average Score: 5.185
+
+Scores by Criterion:
+  coverage_evidence_clarity: 5.556
+  accuracy_safety: 5.667
+  structure_faithfulness: 4.333
