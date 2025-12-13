@@ -2,10 +2,10 @@
 
 Streamlined, safety-aware multi-agent research assistant built with AutoGen. Four agents (Planner, Researcher, Writer, Critic) plus guardrails plan, search (web + papers), synthesize, and critique answers on Large Language Models (LLMs). A Streamlit UI exposes traces, citations, safety status, and evaluation summaries; CLI and evaluation modes are included.
 
-![Demo Screenshot (replace with your capture)](documentation/demo_screenshot.png)
 
-> Tip: capture your own screenshot/video after running the web app and place it at `documentation/demo_screenshot.png` (or link a video).
-> Report: See `documentation/Technical_Report.md` (add a PDF or link here if required).
+
+
+> Report: See `documentation/Technical_Report.md` and IS492_Assignment3_omvyas2.pdf.
 
 ## Quickstart
 Requirements: Python 3.10+, `pip install -r requirements.txt`. Set env vars: `OPENAI_API_KEY`, `TAVILY_API_KEY`. (Semantic Scholar paper search is keyless but rate-limited.)
