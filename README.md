@@ -1,289 +1,96 @@
-# Multi-Agent Research System - Assignment 3
+# Multi-Agent Research Assistant (LLM-focused)
 
-A multi-agent system for deep research on HCI topics, featuring orchestrated agents, safety guardrails, and LLM-as-a-Judge evaluation.
+Streamlined, safety-aware multi-agent research assistant built with AutoGen. Four agents (Planner, Researcher, Writer, Critic) plus guardrails plan, search (web + papers), synthesize, and critique answers on Large Language Models (LLMs). A Streamlit UI exposes traces, citations, safety status, and evaluation summaries; CLI and evaluation modes are included.
 
-## Overview
 
-This template provides a starting point for building a multi-agent research assistant system. The system uses multiple specialized agents to:
-- Plan research tasks
-- Gather evidence from academic papers and web sources
-- Synthesize findings into coherent responses
-- Evaluate quality and verify accuracy
-- Ensure safety through guardrails
 
-## Project Structure
 
+> Report: See `documentation/Technical_Report.md` and IS492_Assignment3_omvyas2.pdf.
+
+## Quickstart
+Requirements: Python 3.10+, `pip install -r requirements.txt`. Set env vars: `OPENAI_API_KEY`, `TAVILY_API_KEY`. (Semantic Scholar paper search is keyless but rate-limited.)
+
+### One-command demo
+```bash
+bash scripts/run_demo.sh
 ```
-.
+Runs an end-to-end example (orchestrator + evaluation) and writes artifacts to `outputs/`.
+
+### Manual runs
+- **Web UI**: `python main.py --mode web` (or `streamlit run src/ui/streamlit_app.py`)
+- **CLI**: `python main.py --mode cli`
+- **Evaluation (LLM-as-judge)**: `python main.py --mode evaluate`
+
+## What to expect
+- Agents coordinate via AutoGen RoundRobinGroupChat: Planner -> Researcher (web_search, paper_search) -> Writer -> Critic -> Safety.
+- UI shows response, citations, safety status, quality metrics, agent messages/traces, and latest evaluation summary.
+- Safety refuses/sanitizes unsafe content; events log to `logs/safety_events.log`.
+
+## Tested queries (LLM-focused)
+- Recent safety benchmarks and mitigations for large language models
+- Compare retrieval-augmented generation approaches for LLMs
+- Efficiency techniques for serving 70B+ LLMs on GPUs
+- Evaluation methods for hallucination and factuality in LLMs
+
+## Sample artifacts (in repo)
+- `outputs/sample_session.json` (Planner/Researcher/Writer/Critic trace and final response)
+- `outputs/sample_final.md` (final answer with inline citations + sources list)
+- `outputs/sample_judge_output.json` (example judge scores/output)
+
+Regenerate fresh artifacts with your keys: run the web/CLI/evaluate modes or `bash scripts/run_one_query.sh` and overwrite these files with real outputs.
+
+## UI transparency
+- Agent messages & traces are viewable in expanders.
+- Tool calls are tagged (e.g., `[ToolCall] web_search ...`, `[ToolCall] paper_search ...`).
+- Citations under “📚 Citations”; safety warnings appear when content is refused/sanitized.
+
+## Safety
+- Built-in guardrails for input/output (harmful content, personal attacks, misinformation, off-topic; plus self-harm, violence, PII, illegal content).
+- NeMo Guardrails was attempted but disabled due to Colang parsing errors; fallback is the built-in guardrail stack. Configure in `config.yaml` under `safety.framework`.
+- Logs: `logs/safety_events.log`.
+
+## Evaluation (LLM-as-judge)
+- Three judge prompts (`coverage_evidence_clarity`, `accuracy_safety`, `structure_faithfulness`) in `src/evaluation/judge.py`.
+- Metrics: relevance/coverage, evidence quality, factual accuracy, safety compliance, clarity/organization (weights in `config.yaml`).
+- Data: `data/example_queries.json` (trimmed to 3 queries for context safety).
+- Outputs: `outputs/evaluation_*.json`; latest summary shown in the web UI.
+
+## Reproducing the write-up results
+1) Set env vars: `export OPENAI_API_KEY=...`, `export TAVILY_API_KEY=...` (or create `.env`).
+2) Install deps: `pip install -r requirements.txt`.
+3) Run one end-to-end query and export artifacts: `bash scripts/run_one_query.sh` (writes `outputs/sample_session.json` and `outputs/sample_final.md`).
+4) Run evaluation (3 queries to avoid context bloat): `python main.py --mode evaluate`; then `latest=$(ls outputs/evaluation_*.json | sort | tail -1); cp "$latest" outputs/sample_judge_output.json`.
+5) Web UI for screenshots: `python main.py --mode web`; submit a query, open Agent Messages/Traces and Citations, capture screenshot to `documentation/demo_screenshot.png`.
+6) (Optional) Convert final Markdown to HTML:
+   ```bash
+   pip install markdown
+   python - <<'PY'
+   from pathlib import Path
+   import markdown
+   html = markdown.markdown(Path('outputs/sample_final.md').read_text())
+   Path('outputs/sample_final.html').write_text(html)
+   PY
+   ```
+7) Safety check: issue an unsafe query in the web UI (e.g., obvious PII) and confirm a warning/refusal plus an entry in `logs/safety_events.log`.
+
+## Folder structure (key parts)
+```
 ├── src/
-│   ├── agents/              # Agent implementations
-│   │   ├── base_agent.py    # Base agent class
-│   │   ├── planner_agent.py # Task planning agent
-│   │   ├── researcher_agent.py # Evidence gathering agent
-│   │   ├── critic_agent.py  # Quality verification agent
-│   │   └── writer_agent.py  # Response synthesis agent
-│   ├── guardrails/          # Safety guardrails
-│   │   ├── safety_manager.py # Main safety coordinator
-│   │   ├── input_guardrail.py # Input validation
-│   │   └── output_guardrail.py # Output validation
-│   ├── tools/               # Research tools
-│   │   ├── web_search.py    # Web search integration
-│   │   ├── paper_search.py  # Academic paper search
-│   │   └── citation_tool.py # Citation formatting
-│   ├── evaluation/          # Evaluation system
-│   │   ├── judge.py         # LLM-as-a-Judge implementation
-│   │   └── evaluator.py     # System evaluator
-│   ├── ui/                  # User interfaces
-│   │   ├── cli.py           # Command-line interface
-│   │   └── streamlit_app.py # Web interface
-│   └── orchestrator.py      # Agent orchestration
-├── data/
-│   └── example_queries.json # Example test queries
-├── logs/                    # Log files (created at runtime)
-├── outputs/                 # Evaluation results (created at runtime)
-├── config.yaml              # System configuration
-├── requirements.txt         # Python dependencies
-├── .env.example            # Environment variables template
-└── main.py                 # Main entry point
+│   ├── agents/               # Planner/Researcher/Writer/Critic + tool wiring
+│   ├── guardrails/           # Safety manager + input/output guardrails (+ nemo wrapper)
+│   ├── tools/                # web_search, paper_search
+│   ├── evaluation/           # judge + evaluator
+│   ├── ui/                   # streamlit_app.py, cli.py
+│   └── autogen_orchestrator.py
+├── data/example_queries.json # small eval set (3 queries)
+├── outputs/                  # sample_session.json, sample_final.md/html, sample_judge_output.json
+├── scripts/                  # run_demo.sh, run_one_query.sh
+├── documentation/            # Technical_Report.md, demo_screenshot placeholder
+├── config.yaml               # config (models, tools, safety, eval)
+└── logs/                     # runtime and safety logs
 ```
 
-## Setup Instructions
-
-### 1. Prerequisites
-
-- Python 3.9 or higher
-- `uv` package manager (recommended) or `pip`
-- Virtual environment
-
-### 2. Installation
-
-#### Installing uv (Recommended)
-
-`uv` is a fast Python package installer and resolver. Install it first:
-
-```bash
-# On macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# On Windows
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# Alternative: Using pip
-pip install uv
-```
-
-#### Setting up the Project
-
-Clone the repository and navigate to the project directory:
-
-```bash
-cd is-492-assignment-3
-```
-
-**Option A: Using uv (Recommended - Much Faster)**
-
-```bash
-# Create virtual environment and install dependencies
-uv venv
-source .venv/bin/activate  # On macOS/Linux
-# OR
-.venv\Scripts\activate     # On Windows
-
-# Install dependencies
-uv pip install -r requirements.txt
-```
-
-**Option B: Using standard pip**
-
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate   # On macOS/Linux
-# OR
-venv\Scripts\activate      # On Windows
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 3. Security Setup (Important!)
-
-**Before committing any code**, set up pre-commit hooks to prevent API key leaks:
-
-```bash
-# Quick setup - installs hooks and runs security checks
-./scripts/install-hooks.sh
-
-# Or manually
-pre-commit install
-```
-
-This will automatically scan for hardcoded API keys and secrets before each commit. See `SECURITY_SETUP.md` for full details.
-
-### 4. API Keys Configuration
-
-Copy the example environment file:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and add your API keys:
-
-```bash
-# Required: At least one LLM API
-GROQ_API_KEY=your_groq_api_key_here
-# OR
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Recommended: At least one search API
-TAVILY_API_KEY=your_tavily_api_key_here
-# OR
-BRAVE_API_KEY=your_brave_api_key_here
-
-# Optional: For academic paper search
-SEMANTIC_SCHOLAR_API_KEY=your_key_here
-```
-
-#### Getting API Keys
-
-- **Groq** (Recommended for students): [https://console.groq.com](https://console.groq.com) - Free tier available
-- **OpenAI**: [https://platform.openai.com](https://platform.openai.com) - Paid, requires credits
-- **Tavily**: [https://www.tavily.com](https://www.tavily.com) - Student free quota available
-- **Brave Search**: [https://brave.com/search/api](https://brave.com/search/api)
-- **Semantic Scholar**: [https://www.semanticscholar.org/product/api](https://www.semanticscholar.org/product/api) - Free tier available
-
-### 5. Configuration
-
-Edit `config.yaml` to customize your system:
-
-- Choose your research topic
-- **Configure agent prompts** (see below)
-- Set model preferences (Groq vs OpenAI)
-- Define safety policies
-- Configure evaluation criteria
-
-#### Customizing Agent Prompts
-
-You can customize agent behavior by setting the `system_prompt` in `config.yaml`:
-
-```yaml
-agents:
-  planner:
-    system_prompt: |
-      You are an expert research planner specializing in HCI.
-      Focus on recent publications and seminal works.
-      After creating the plan, say "PLAN COMPLETE".
-```
-
-**Important**: Custom prompts must include handoff signals:
-- **Planner**: Must include `"PLAN COMPLETE"`
-- **Researcher**: Must include `"RESEARCH COMPLETE"`  
-- **Writer**: Must include `"DRAFT COMPLETE"`
-- **Critic**: Must include `"APPROVED - RESEARCH COMPLETE"` or `"NEEDS REVISION"`
-
-Leave `system_prompt: ""` (empty) to use the default prompts.
-
-## Implementation Guide
-
-This template provides the structure - you need to implement the core functionality. Here's what needs to be done:
-
-### Phase 1: Core Agent Implementation
-
-1. **Implement Agent Logic** (in `src/agents/`)
-   - [ ] Complete `planner_agent.py` - Integrate LLM to break down queries
-   - [ ] Complete `researcher_agent.py` - Integrate search APIs (Tavily, Semantic Scholar)
-   - [ ] Complete `critic_agent.py` - Implement quality evaluation logic
-   - [ ] Complete `writer_agent.py` - Implement synthesis with proper citations
-
-2. **Implement Tools** (in `src/tools/`)
-   - [ ] Complete `web_search.py` - Integrate Tavily or Brave API
-   - [ ] Complete `paper_search.py` - Integrate Semantic Scholar API
-   - [ ] Complete `citation_tool.py` - Implement APA citation formatting
-
-### Phase 2: Orchestration
-
-Choose your preferred framework to implement the multi-agent system. The current assignment template code uses AutoGen, but you can also choose to use other frameworks as you prefer (e.g., LangGraph and Crew.ai).
-
-
-3. **Update `orchestrator.py`**
-   - Integrate your chosen framework
-   - Implement the workflow: plan → research → write → critique → revise
-   - Add error handling
-
-### Phase 3: Safety Guardrails
-
-4. **Implement Guardrails** (in `src/guardrails/`)
-   - [ ] Choose framework: Guardrails AI or NeMo Guardrails
-   - [ ] Define safety policies in `safety_manager.py`
-   - [ ] Implement input validation in `input_guardrail.py`
-   - [ ] Implement output validation in `output_guardrail.py`
-   - [ ] Set up safety event logging
-
-### Phase 4: Evaluation
-
-5. **Implement LLM-as-a-Judge** (in `src/evaluation/`)
-   - [ ] Complete `judge.py` - Integrate LLM API for judging
-   - [ ] Define evaluation rubrics for each criterion
-   - [ ] Implement score parsing and aggregation
-
-6. **Create Test Dataset**
-   - [ ] Add more test queries to `data/example_queries.json`
-   - [ ] Define expected outputs or ground truths where possible
-   - [ ] Cover different query types and topics
-
-### Phase 5: User Interface
-
-7. **Complete UI** (choose one or both)
-   - [ ] Finish CLI implementation in `src/ui/cli.py`
-   - [ ] Finish web UI in `src/ui/streamlit_app.py`
-   - [ ] Display agent traces clearly
-   - [ ] Show citations and sources
-   - [ ] Indicate safety events
-
-## Running the System
-
-### Command Line Interface
-
-```bash
-python main.py --mode cli
-```
-
-### Web Interface
-
-```bash
-python main.py --mode web
-# OR directly:
-streamlit run src/ui/streamlit_app.py
-```
-
-### Running Evaluation
-
-```bash
-python main.py --mode evaluate
-```
-
-This will:
-- Load test queries from `data/example_queries.json`
-- Run each query through your system
-- Evaluate outputs using LLM-as-a-Judge
-- Generate report in `outputs/`
-
-## Testing
-
-Run tests (if you create them):
-
-```bash
-pytest tests/
-```
-
-## Resources
-
-### Documentation
-- [uv Documentation](https://docs.astral.sh/uv/) - Fast Python package installer
-- [AutoGen Documentation](https://microsoft.github.io/autogen/)
-- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
-- [Guardrails AI](https://docs.guardrailsai.com/)
-- [NeMo Guardrails](https://docs.nvidia.com/nemo/guardrails/)
-- [Tavily API](https://docs.tavily.com/)
-- [Semantic Scholar API](https://api.semanticscholar.org/)
+## Known limitations / future work
+- Semantic Scholar rate limits can yield empty paper results; web search still runs. Add caching/backoff or alternate paper APIs if needed.
+- No live “active agent” indicator (traces are post-hoc). Could add streaming agent badges.
+- NeMo rails parsing fails; fix Colang/YAML and re-enable `framework: nemo` when stable.

@@ -1,0 +1,15 @@
+define flow input_filter
+  if contains(last_user_message, "suicide", "self-harm", "kill myself", "harm") then
+    block "self_harm"
+  end
+
+  if contains(last_user_message, "attack", "bomb", "terror", "weapon") then
+    block "violence"
+  end
+
+  if contains(last_user_message, "ssn", "social security", "credit card", "password", "phone number") then
+    block "pii"
+  end
+
+  allow
+end
